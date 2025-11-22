@@ -1,0 +1,19 @@
+{
+  "tests": [
+    {
+      "name": "Process payment",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "telegram_id": 123456789,
+        "stars_amount": 10
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true,
+        "added": 100
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

@@ -8,10 +8,114 @@ import { Badge } from '@/components/ui/badge';
 type GameType = 'sapper' | 'ladder';
 
 const Index = () => {
-  const [balance, setBalance] = useState(1000);
-  const [userId] = useState('#1000');
+  const [balance, setBalance] = useState(0);
+  const [userId, setUserId] = useState<string>('');
+  const [telegramId, setTelegramId] = useState<number | null>(null);
   const [currentGame, setCurrentGame] = useState<GameType | null>(null);
   const [bet, setBet] = useState(10);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showTopUpDialog, setShowTopUpDialog] = useState(false);
+
+  useEffect(() => {
+    const initTelegram = async () => {
+      try {
+        if (window.Telegram?.WebApp) {
+          const tg = window.Telegram.WebApp;
+          tg.ready();
+          tg.expand();
+
+          const user = tg.initDataUnsafe?.user;
+          
+          if (user) {
+            const tgId = user.id;
+            setTelegramId(tgId);
+            setUserId(`#${tgId}`);
+
+            const response = await fetch(
+              `https://functions.poehali.dev/64460411-3489-48dc-8b81-a5b4f3f2f6aa?telegram_id=${tgId}`
+            );
+
+            if (response.ok) {
+              const data = await response.json();
+              setBalance(data.balance);
+            } else {
+              const createResponse = await fetch(
+                'https://functions.poehali.dev/64460411-3489-48dc-8b81-a5b4f3f2f6aa',
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    telegram_id: tgId,
+                    username: user.username || '',
+                    first_name: user.first_name || '',
+                    last_name: user.last_name || '',
+                  }),
+                }
+              );
+              if (createResponse.ok) {
+                const data = await createResponse.json();
+                setBalance(data.balance);
+              }
+            }
+          } else {
+            setUserId('#demo');
+            setTelegramId(999999);
+            setBalance(100);
+          }
+        } else {
+          setUserId('#demo');
+          setTelegramId(999999);
+          setBalance(100);
+        }
+      } catch (error) {
+        console.error('Telegram init error:', error);
+        setUserId('#demo');
+        setTelegramId(999999);
+        setBalance(100);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initTelegram();
+  }, []);
+
+  const handleTopUp = async (stars: number) => {
+    if (!telegramId) return;
+
+    try {
+      const response = await fetch(
+        'https://functions.poehali.dev/b946a71a-3088-4938-8ccc-972fcdaac1c0',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            telegram_id: telegramId,
+            stars_amount: stars,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setBalance(data.new_balance);
+        setShowTopUpDialog(false);
+      }
+    } catch (error) {
+      console.error('Payment error:', error);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <span className="text-6xl mb-4 block">🦆</span>
+          <div className="text-xl font-bold text-primary">Загрузка...</div>
+        </div>
+      </div>
+    );
+  }
 
   const games = [
     { id: 'sapper' as GameType, title: 'Сапёр', icon: '🎯', description: 'Открывай клетки, избегай бомбы! Настраивай сложность от 3 до 15 бомб' },
@@ -45,14 +149,59 @@ const Index = () => {
             <div className="text-xl font-bold text-primary">{userId}</div>
           </Card>
           
-          <Card className="p-4 bg-card border-2 border-primary/30">
-            <div className="flex items-center gap-2 text-muted-foreground mb-1">
-              <Icon name="Coins" className="w-4 h-4" />
-              <span className="text-sm">Баланс</span>
+          <Card className="p-4 bg-card border-2 border-primary/30 relative">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Icon name="Coins" className="w-4 h-4" />
+                <span className="text-sm">Баланс</span>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-xs bg-primary/10 hover:bg-primary/20"
+                onClick={() => setShowTopUpDialog(true)}
+              >
+                <Icon name="Plus" className="w-3 h-3 mr-1" />
+                Пополнить
+              </Button>
             </div>
-            <div className="text-xl font-bold text-primary">{balance}</div>
+            <div className="text-xl font-bold text-primary">{balance} ⭐</div>
           </Card>
         </div>
+
+        {showTopUpDialog && (
+          <Card className="p-6 mb-6 bg-card border-2 border-primary animate-scale-in">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">Пополнить баланс</h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowTopUpDialog(false)}
+              >
+                <Icon name="X" className="w-5 h-5" />
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              1 звезда Telegram = 10 монет в казино
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {[10, 50, 100, 500].map((stars) => (
+                <Button
+                  key={stars}
+                  onClick={() => handleTopUp(stars)}
+                  className="flex flex-col h-auto py-4"
+                  variant="outline"
+                >
+                  <div className="text-2xl mb-1">⭐</div>
+                  <div className="text-lg font-bold">{stars} звёзд</div>
+                  <div className="text-xs text-muted-foreground">
+                    {stars * 10} монет
+                  </div>
+                </Button>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {!currentGame ? (
           <div className="space-y-4 animate-fade-in">
@@ -81,6 +230,7 @@ const Index = () => {
             setBet={setBet}
             balance={balance}
             setBalance={setBalance}
+            telegramId={telegramId}
             onBack={() => setCurrentGame(null)}
           />
         )}
@@ -95,6 +245,7 @@ const GameView = ({
   setBet, 
   balance, 
   setBalance,
+  telegramId,
   onBack 
 }: { 
   gameType: GameType;
@@ -102,6 +253,7 @@ const GameView = ({
   setBet: (v: number) => void;
   balance: number;
   setBalance: (v: number) => void;
+  telegramId: number | null;
   onBack: () => void;
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -117,9 +269,29 @@ const GameView = ({
 
   const config = gameConfig[gameType];
 
+  const updateBalance = async (change: number, type: string, description: string) => {
+    if (!telegramId) return;
+    
+    try {
+      await fetch('https://functions.poehali.dev/64460411-3489-48dc-8b81-a5b4f3f2f6aa', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegram_id: telegramId,
+          balance_change: change,
+          transaction_type: type,
+          description: description,
+        }),
+      });
+    } catch (error) {
+      console.error('Balance update error:', error);
+    }
+  };
+
   const startGame = () => {
     if (bet > balance) return;
     setBalance(balance - bet);
+    updateBalance(-bet, 'game', `Ставка в игре ${config.title}`);
     setIsPlaying(true);
     setCurrentMultiplier(1);
     setGameKey(prev => prev + 1);
@@ -128,12 +300,14 @@ const GameView = ({
   const cashout = () => {
     const win = Math.floor(bet * currentMultiplier);
     setBalance(balance + win);
+    updateBalance(win, 'game', `Выигрыш в игре ${config.title} (x${currentMultiplier.toFixed(2)})`);
     setIsPlaying(false);
     setCurrentMultiplier(1);
     setGameKey(prev => prev + 1);
   };
 
   const handleGameOver = () => {
+    updateBalance(0, 'game', `Проигрыш в игре ${config.title}`);
     setIsPlaying(false);
     setCurrentMultiplier(1);
     setGameKey(prev => prev + 1);
