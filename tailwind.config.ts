@@ -101,6 +101,15 @@ export default {
 					'0%': { transform: 'scale(1)' },
 					'50%': { transform: 'scale(1.3)' },
 					'100%': { transform: 'scale(1)' }
+				},
+				'stone-fall': {
+					'0%': { transform: 'translateY(0) scale(1)', opacity: '1' },
+					'100%': { transform: 'translateY(0) scale(1.1)', opacity: '1' }
+				},
+				'stone-drop': {
+					'0%': { transform: 'translateY(-100px)', opacity: '0' },
+					'50%': { opacity: '1' },
+					'100%': { transform: 'translateY(0)', opacity: '1' }
 				}
 			},
 			animation: {
@@ -108,7 +117,9 @@ export default {
 				'accordion-up': 'accordion-up 0.2s ease-out',
 				'fade-in': 'fade-in 0.3s ease-out',
 				'scale-in': 'scale-in 0.2s ease-out',
-				'explosion': 'explosion 0.6s ease-out'
+				'explosion': 'explosion 0.6s ease-out',
+				'stone-fall': 'stone-fall 0.3s ease-in-out',
+				'stone-drop': 'stone-drop 0.6s ease-out'
 			}
 		}
 	},
