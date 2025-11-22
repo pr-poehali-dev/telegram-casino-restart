@@ -107,6 +107,7 @@ const GameView = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMultiplier, setCurrentMultiplier] = useState(1);
   const [bombCount, setBombCount] = useState(3);
+  const [gameKey, setGameKey] = useState(0);
 
   const gameConfig = {
     sapper: { title: 'Сапёр', icon: '🎯' },
@@ -120,12 +121,21 @@ const GameView = ({
     setBalance(balance - bet);
     setIsPlaying(true);
     setCurrentMultiplier(1);
+    setGameKey(prev => prev + 1);
   };
 
   const cashout = () => {
     const win = Math.floor(bet * currentMultiplier);
     setBalance(balance + win);
     setIsPlaying(false);
+    setCurrentMultiplier(1);
+    setGameKey(prev => prev + 1);
+  };
+
+  const handleGameOver = () => {
+    setIsPlaying(false);
+    setCurrentMultiplier(1);
+    setGameKey(prev => prev + 1);
   };
 
   return (
@@ -146,17 +156,19 @@ const GameView = ({
         </div>
 
         {gameType === 'sapper' && <SapperGame 
+          key={gameKey}
           isPlaying={isPlaying}
           multiplier={currentMultiplier}
           setMultiplier={setCurrentMultiplier}
-          onGameOver={() => setIsPlaying(false)}
+          onGameOver={handleGameOver}
           bombCount={bombCount}
         />}
         {gameType === 'ladder' && <LadderGame 
+          key={gameKey}
           isPlaying={isPlaying}
           multiplier={currentMultiplier}
           setMultiplier={setCurrentMultiplier}
-          onGameOver={() => setIsPlaying(false)}
+          onGameOver={handleGameOver}
         />}
 
         {!isPlaying ? (
@@ -273,9 +285,6 @@ const SapperGame = ({
       setRevealed(allRevealed);
       setTimeout(() => {
         onGameOver();
-        setRevealed(Array(25).fill(false));
-        setBombs([]);
-        setGameOver(false);
       }, 1500);
     } else {
       const openedSafe = newRevealed.filter((r, i) => r && !bombs[i]).length;
