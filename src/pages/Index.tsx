@@ -368,29 +368,32 @@ const LadderGame = ({
 }) => {
   const [currentLevel, setCurrentLevel] = useState(10);
   const [playerPosition, setPlayerPosition] = useState(10);
-  const [stones, setStones] = useState<boolean[][]>([]);
-  const [revealedStones, setRevealedStones] = useState<Set<number>>(new Set());
-  const [revealedStars, setRevealedStars] = useState<Set<number>>(new Set());
-  const [fallingStones, setFallingStones] = useState<Set<number>>(new Set());
+  const [stones, setStones] = useState<Map<string, boolean>>(new Map());
+  const [revealedStones, setRevealedStones] = useState<Set<string>>(new Set());
+  const [revealedStars, setRevealedStars] = useState<Set<string>>(new Set());
+  const [fallingStones, setFallingStones] = useState<Set<string>>(new Set());
   const [moveCount, setMoveCount] = useState(0);
-  const cellsPerRow = 20;
   const totalRows = 11;
 
+  const getCellsForRow = (rowIndex: number) => {
+    return Math.max(5, 20 - rowIndex * 3);
+  };
+
   useEffect(() => {
-    if (isPlaying && stones.length === 0) {
-      const newStones: boolean[][] = [];
+    if (isPlaying && stones.size === 0) {
+      const newStones = new Map<string, boolean>();
       for (let row = 0; row < totalRows; row++) {
-        const rowStones = Array(cellsPerRow).fill(false);
+        const rowCells = getCellsForRow(row);
         const positions = new Set<number>();
-        while (positions.size < stoneCount) {
-          positions.add(Math.floor(Math.random() * cellsPerRow));
+        while (positions.size < Math.min(stoneCount, rowCells - 2)) {
+          positions.add(Math.floor(Math.random() * rowCells));
         }
-        positions.forEach(p => rowStones[p] = true);
-        newStones.push(rowStones);
+        positions.forEach(p => newStones.set(`${row}-${p}`, true));
       }
       setStones(newStones);
+      setPlayerPosition(Math.floor(getCellsForRow(10) / 2));
     }
-  }, [isPlaying, stones.length, stoneCount]);
+  }, [isPlaying, stones.size, stoneCount]);
 
   const calculateMultiplier = (level: number) => {
     const progress = (10 - level) / 10;
@@ -402,19 +405,17 @@ const LadderGame = ({
     if (!isPlaying || currentLevel <= 0) return;
     
     const nextRow = currentLevel - 1;
-    const cellId = nextRow * cellsPerRow + position;
+    const cellId = `${nextRow}-${position}`;
     const newMoveCount = moveCount + 1;
     setMoveCount(newMoveCount);
 
-    const casinoTrap = newMoveCount > 3 && Math.random() < 0.15 + (newMoveCount * 0.02);
+    const dangerLevel = newMoveCount > 3 ? 0.15 + (newMoveCount * 0.02) : 0;
+    const casinoTrap = Math.random() < dangerLevel;
     
-    if (casinoTrap || stones[nextRow]?.[position]) {
-      const actualPosition = casinoTrap ? position : position;
-      const actualCellId = nextRow * cellsPerRow + actualPosition;
-      
-      setFallingStones(new Set([actualCellId]));
+    if (casinoTrap || stones.has(cellId)) {
+      setFallingStones(new Set([cellId]));
       setTimeout(() => {
-        setRevealedStones(new Set([...revealedStones, actualCellId]));
+        setRevealedStones(new Set([...revealedStones, cellId]));
         setFallingStones(new Set());
         setTimeout(() => {
           onGameOver();
@@ -429,62 +430,101 @@ const LadderGame = ({
     setMultiplier(calculateMultiplier(nextRow));
   };
 
+  const getDangerLevel = () => {
+    if (moveCount <= 3) return 0;
+    return Math.min(0.15 + (moveCount * 0.02), 0.5);
+  };
+
   const getMultiplierForRow = (rowIndex: number) => {
     const progress = (10 - rowIndex) / 10;
     const baseMultiplier = 2 + (stoneCount * 1.5);
     return Number((1 + progress * progress * baseMultiplier).toFixed(2));
   };
 
+  const dangerLevel = getDangerLevel();
+  const dangerColor = dangerLevel > 0.3 ? 'text-destructive' : dangerLevel > 0.15 ? 'text-orange-500' : 'text-primary';
+
   return (
     <div className="bg-gradient-to-b from-card/80 to-background/50 p-4 rounded-lg border-2 border-border relative overflow-hidden">
-      <div className="space-y-[2px]">
-        {Array.from({ length: totalRows }).map((_, rowIndex) => (
-          <div key={rowIndex} className="flex gap-[2px] items-center">
-            <div className="w-12 text-xs text-muted-foreground font-bold text-right mr-2">
-              ×{getMultiplierForRow(rowIndex)}
-            </div>
-            {Array.from({ length: cellsPerRow }).map((_, colIndex) => {
-              const cellId = rowIndex * cellsPerRow + colIndex;
-              const isPlayerHere = rowIndex === currentLevel && colIndex === playerPosition;
-              const hasStone = stones[rowIndex]?.[colIndex];
-              const isStoneRevealed = revealedStones.has(cellId);
-              const isStarRevealed = revealedStars.has(cellId);
-              const isFalling = fallingStones.has(cellId);
-              const isNextRow = rowIndex === currentLevel - 1;
-              const isClickable = isNextRow;
-              const isPastRow = rowIndex > currentLevel;
-              const isFutureRow = rowIndex < currentLevel && !isStarRevealed && !isStoneRevealed;
-
-              return (
-                <button
-                  key={colIndex}
-                  onClick={() => handleClick(colIndex)}
-                  disabled={!isPlaying || !isClickable}
-                  className={`h-7 flex-1 rounded-sm flex items-center justify-center text-sm font-bold transition-all relative
-                    ${isPlayerHere ? 'bg-primary text-primary-foreground scale-110 z-10' : ''}
-                    ${isStoneRevealed ? 'bg-muted-foreground/80' : ''}
-                    ${isStarRevealed ? 'bg-primary/40' : ''}
-                    ${isPastRow && !isPlayerHere && !isStarRevealed && !isStoneRevealed ? 'bg-muted/20' : ''}
-                    ${isFutureRow ? 'bg-card/60' : ''}
-                    ${isNextRow && !isClickable && !isStarRevealed && !isStoneRevealed ? 'bg-destructive/15' : ''}
-                    ${isClickable && !isPlayerHere && !isStarRevealed && !isStoneRevealed ? 'bg-primary/10 hover:bg-primary/30 cursor-pointer' : ''}
-                    ${!isClickable && !isPlayerHere && !isStarRevealed && !isStoneRevealed ? 'cursor-default' : ''}
-                    ${isFalling ? 'animate-stone-fall' : ''}
-                  `}
-                >
-                  {isPlayerHere && <span className="text-base">👤</span>}
-                  {isStoneRevealed && <span className="animate-pulse">🪨</span>}
-                  {isStarRevealed && <span>⭐</span>}
-                  {isFalling && (
-                    <div className="absolute inset-0 flex items-start justify-center animate-stone-drop">
-                      <span className="text-lg">🪨</span>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
+      {moveCount > 3 && (
+        <div className="mb-3 p-2 bg-destructive/10 border border-destructive/30 rounded flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">⚠️</span>
+            <span className="text-xs text-muted-foreground">Опасность</span>
           </div>
-        ))}
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-24 bg-muted rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-primary via-orange-500 to-destructive transition-all duration-300"
+                style={{ width: `${Math.min(dangerLevel * 200, 100)}%` }}
+              />
+            </div>
+            <span className={`text-sm font-bold ${dangerColor}`}>{Math.floor(dangerLevel * 100)}%</span>
+          </div>
+        </div>
+      )}
+      
+      <div className="space-y-[2px]">
+        {Array.from({ length: totalRows }).map((_, rowIndex) => {
+          const rowCells = getCellsForRow(rowIndex);
+          const paddingCells = Math.floor((20 - rowCells) / 2);
+          
+          return (
+            <div key={rowIndex} className="flex gap-[2px] items-center">
+              <div className="w-12 text-xs text-muted-foreground font-bold text-right mr-2">
+                ×{getMultiplierForRow(rowIndex)}
+              </div>
+              
+              {Array.from({ length: paddingCells }).map((_, i) => (
+                <div key={`pad-left-${i}`} className="h-7 flex-1 opacity-0" />
+              ))}
+              
+              {Array.from({ length: rowCells }).map((_, colIndex) => {
+                const cellId = `${rowIndex}-${colIndex}`;
+                const isPlayerHere = rowIndex === currentLevel && colIndex === playerPosition;
+                const isStoneRevealed = revealedStones.has(cellId);
+                const isStarRevealed = revealedStars.has(cellId);
+                const isFalling = fallingStones.has(cellId);
+                const isNextRow = rowIndex === currentLevel - 1;
+                const isClickable = isNextRow;
+                const isPastRow = rowIndex > currentLevel;
+                const isFutureRow = rowIndex < currentLevel && !isStarRevealed && !isStoneRevealed;
+
+                return (
+                  <button
+                    key={colIndex}
+                    onClick={() => handleClick(colIndex)}
+                    disabled={!isPlaying || !isClickable}
+                    className={`h-7 flex-1 rounded-sm flex items-center justify-center text-sm font-bold transition-all relative
+                      ${isPlayerHere ? 'bg-primary text-primary-foreground scale-110 z-10' : ''}
+                      ${isStoneRevealed ? 'bg-muted-foreground/80' : ''}
+                      ${isStarRevealed ? 'bg-primary/40' : ''}
+                      ${isPastRow && !isPlayerHere && !isStarRevealed && !isStoneRevealed ? 'bg-muted/20' : ''}
+                      ${isFutureRow ? 'bg-card/60' : ''}
+                      ${isNextRow && !isStarRevealed && !isStoneRevealed ? 'bg-destructive/15' : ''}
+                      ${isClickable && !isPlayerHere && !isStarRevealed && !isStoneRevealed ? 'hover:bg-primary/30 cursor-pointer' : ''}
+                      ${!isClickable && !isPlayerHere && !isStarRevealed && !isStoneRevealed ? 'cursor-default' : ''}
+                      ${isFalling ? 'animate-stone-fall' : ''}
+                    `}
+                  >
+                    {isPlayerHere && <span className="text-base">👤</span>}
+                    {isStoneRevealed && <span className="animate-pulse">🪨</span>}
+                    {isStarRevealed && <span>⭐</span>}
+                    {isFalling && (
+                      <div className="absolute inset-0 flex items-start justify-center animate-stone-drop">
+                        <span className="text-lg">🪨</span>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+              
+              {Array.from({ length: paddingCells }).map((_, i) => (
+                <div key={`pad-right-${i}`} className="h-7 flex-1 opacity-0" />
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
