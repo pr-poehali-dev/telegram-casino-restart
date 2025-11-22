@@ -376,7 +376,7 @@ const LadderGame = ({
   const totalRows = 11;
 
   const getCellsForRow = (rowIndex: number) => {
-    return Math.max(5, 20 - rowIndex * 3);
+    return Math.max(5, 20 - (10 - rowIndex) * 3);
   };
 
   useEffect(() => {
