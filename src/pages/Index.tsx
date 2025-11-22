@@ -424,9 +424,19 @@ const LadderGame = ({
       return;
     }
 
+    const rowCells = getCellsForRow(nextRow);
+    const newRevealedStones = new Set(revealedStones);
+    for (let col = 0; col < rowCells; col++) {
+      const checkCellId = `${nextRow}-${col}`;
+      if (stones.has(checkCellId) && col !== position) {
+        newRevealedStones.add(checkCellId);
+      }
+    }
+
     setCurrentLevel(nextRow);
     setPlayerPosition(position);
     setRevealedStars(new Set([...revealedStars, cellId]));
+    setRevealedStones(newRevealedStones);
     setMultiplier(calculateMultiplier(nextRow));
   };
 
