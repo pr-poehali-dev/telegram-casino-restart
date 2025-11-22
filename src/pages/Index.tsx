@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import { Badge } from '@/components/ui/badge';
 
-type GameType = 'miner' | 'sapper' | 'ladder' | 'tower';
+type GameType = 'sapper' | 'ladder';
 
 const Index = () => {
   const [balance, setBalance] = useState(1000);
@@ -14,10 +14,8 @@ const Index = () => {
   const [bet, setBet] = useState(10);
 
   const games = [
-    { id: 'miner' as GameType, title: 'Минёр', icon: '💣', description: 'Открывай клетки и собирай призы! Избегай мин и забирай в любой момент' },
-    { id: 'sapper' as GameType, title: 'Сапёр', icon: '🎯', description: 'Найди все безопасные клетки и получи максимум' },
+    { id: 'sapper' as GameType, title: 'Сапёр', icon: '🎯', description: 'Открывай клетки, избегай бомбы! Настраивай сложность от 3 до 15 бомб' },
     { id: 'ladder' as GameType, title: 'Лесенка', icon: '🪜', description: 'Поднимайся выше и умножай выигрыш' },
-    { id: 'tower' as GameType, title: 'Башня', icon: '🗼', description: 'Строй башню до небес за джекпот' },
   ];
 
   return (
@@ -108,12 +106,11 @@ const GameView = ({
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMultiplier, setCurrentMultiplier] = useState(1);
+  const [bombCount, setBombCount] = useState(3);
 
   const gameConfig = {
-    miner: { title: 'Минёр', icon: '💣' },
     sapper: { title: 'Сапёр', icon: '🎯' },
     ladder: { title: 'Лесенка', icon: '🪜' },
-    tower: { title: 'Башня', icon: '🗼' },
   };
 
   const config = gameConfig[gameType];
@@ -148,25 +145,14 @@ const GameView = ({
           <h2 className="text-3xl font-bold text-foreground">{config.title}</h2>
         </div>
 
-        {gameType === 'miner' && <MinerGame 
-          isPlaying={isPlaying}
-          multiplier={currentMultiplier}
-          setMultiplier={setCurrentMultiplier}
-          onGameOver={() => setIsPlaying(false)}
-        />}
         {gameType === 'sapper' && <SapperGame 
           isPlaying={isPlaying}
           multiplier={currentMultiplier}
           setMultiplier={setCurrentMultiplier}
           onGameOver={() => setIsPlaying(false)}
+          bombCount={bombCount}
         />}
         {gameType === 'ladder' && <LadderGame 
-          isPlaying={isPlaying}
-          multiplier={currentMultiplier}
-          setMultiplier={setCurrentMultiplier}
-          onGameOver={() => setIsPlaying(false)}
-        />}
-        {gameType === 'tower' && <TowerGame 
           isPlaying={isPlaying}
           multiplier={currentMultiplier}
           setMultiplier={setCurrentMultiplier}
@@ -188,20 +174,26 @@ const GameView = ({
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <Badge className="p-3 justify-center bg-destructive/20 hover:bg-destructive/30 text-destructive border-destructive/50">
-                <span className="mr-1">💣</span>
-                <span className="text-xs">Мина<br/>-50%</span>
-              </Badge>
-              <Badge className="p-3 justify-center bg-primary/20 hover:bg-primary/30 text-primary border-primary/50">
-                <span className="mr-1">⭐</span>
-                <span className="text-xs">Плюс<br/>×1.5</span>
-              </Badge>
-              <Badge className="p-3 justify-center bg-accent/20 hover:bg-accent/30 text-accent border-accent/50">
-                <span className="mr-1">💎</span>
-                <span className="text-xs">Джекпот<br/>×2.0</span>
-              </Badge>
-            </div>
+            {gameType === 'sapper' && (
+              <div>
+                <label className="flex items-center justify-between text-sm mb-2">
+                  <span>Количество бомб 💣</span>
+                  <span className="text-primary font-bold">{bombCount}</span>
+                </label>
+                <Input
+                  type="range"
+                  min="3"
+                  max="15"
+                  value={bombCount}
+                  onChange={(e) => setBombCount(Number(e.target.value))}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                  <span>Легко (×1.2)</span>
+                  <span>Сложно (×3.0)</span>
+                </div>
+              </div>
+            )}
 
             <Button 
               onClick={startGame}
@@ -231,39 +223,64 @@ const GameView = ({
   );
 };
 
-const MinerGame = ({ 
+const SapperGame = ({ 
   isPlaying, 
   multiplier, 
   setMultiplier,
-  onGameOver 
+  onGameOver,
+  bombCount 
 }: { 
   isPlaying: boolean;
   multiplier: number;
   setMultiplier: (v: number) => void;
   onGameOver: () => void;
+  bombCount: number;
 }) => {
   const [revealed, setRevealed] = useState<boolean[]>(Array(25).fill(false));
-  const [mines] = useState(() => {
-    const m = Array(25).fill(false);
-    const positions = new Set<number>();
-    while (positions.size < 5) {
-      positions.add(Math.floor(Math.random() * 25));
+  const [bombs, setBombs] = useState<boolean[]>([]);
+  const [gameOver, setGameOver] = useState(false);
+
+  useEffect(() => {
+    if (isPlaying && bombs.length === 0) {
+      const b = Array(25).fill(false);
+      const positions = new Set<number>();
+      while (positions.size < bombCount) {
+        positions.add(Math.floor(Math.random() * 25));
+      }
+      positions.forEach(p => b[p] = true);
+      setBombs(b);
     }
-    positions.forEach(p => m[p] = true);
-    return m;
-  });
+  }, [isPlaying, bombs.length, bombCount]);
+
+  const calculateMultiplier = (openedSafe: number) => {
+    const totalCells = 25;
+    const safeCells = totalCells - bombCount;
+    const baseMultiplier = 1 + (bombCount / 10);
+    const progressMultiplier = 1 + (openedSafe / safeCells) * baseMultiplier;
+    return Number(progressMultiplier.toFixed(2));
+  };
 
   const handleClick = (index: number) => {
-    if (!isPlaying || revealed[index]) return;
+    if (!isPlaying || revealed[index] || gameOver) return;
     
     const newRevealed = [...revealed];
     newRevealed[index] = true;
     setRevealed(newRevealed);
 
-    if (mines[index]) {
-      onGameOver();
+    if (bombs[index]) {
+      setGameOver(true);
+      const allRevealed = bombs.map((b, i) => b || revealed[i]);
+      setRevealed(allRevealed);
+      setTimeout(() => {
+        onGameOver();
+        setRevealed(Array(25).fill(false));
+        setBombs([]);
+        setGameOver(false);
+      }, 1500);
     } else {
-      setMultiplier(multiplier + 0.2);
+      const openedSafe = newRevealed.filter((r, i) => r && !bombs[i]).length;
+      const newMultiplier = calculateMultiplier(openedSafe);
+      setMultiplier(newMultiplier);
     }
   };
 
@@ -273,78 +290,18 @@ const MinerGame = ({
         <button
           key={i}
           onClick={() => handleClick(i)}
-          disabled={!isPlaying}
+          disabled={!isPlaying || gameOver}
           className={`aspect-square rounded-lg border-2 flex items-center justify-center text-2xl font-bold transition-all hover-scale
             ${revealed[i] 
-              ? mines[i] 
+              ? bombs[i] 
                 ? 'bg-destructive/20 border-destructive' 
                 : 'bg-primary/20 border-primary'
               : 'bg-card border-border hover:border-primary/50'
             }
-            ${!isPlaying ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+            ${!isPlaying || gameOver ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
           `}
         >
-          {revealed[i] && (mines[i] ? '💣' : '⭐')}
-        </button>
-      ))}
-    </div>
-  );
-};
-
-const SapperGame = ({ 
-  isPlaying, 
-  multiplier, 
-  setMultiplier,
-  onGameOver 
-}: { 
-  isPlaying: boolean;
-  multiplier: number;
-  setMultiplier: (v: number) => void;
-  onGameOver: () => void;
-}) => {
-  const [revealed, setRevealed] = useState<boolean[]>(Array(16).fill(false));
-  const [mines] = useState(() => {
-    const m = Array(16).fill(false);
-    const positions = new Set<number>();
-    while (positions.size < 3) {
-      positions.add(Math.floor(Math.random() * 16));
-    }
-    positions.forEach(p => m[p] = true);
-    return m;
-  });
-
-  const handleClick = (index: number) => {
-    if (!isPlaying || revealed[index]) return;
-    
-    const newRevealed = [...revealed];
-    newRevealed[index] = true;
-    setRevealed(newRevealed);
-
-    if (mines[index]) {
-      onGameOver();
-    } else {
-      setMultiplier(multiplier + 0.3);
-    }
-  };
-
-  return (
-    <div className="grid grid-cols-4 gap-3">
-      {Array.from({ length: 16 }).map((_, i) => (
-        <button
-          key={i}
-          onClick={() => handleClick(i)}
-          disabled={!isPlaying}
-          className={`aspect-square rounded-lg border-2 flex items-center justify-center text-3xl font-bold transition-all hover-scale
-            ${revealed[i] 
-              ? mines[i] 
-                ? 'bg-destructive/20 border-destructive' 
-                : 'bg-primary/20 border-primary'
-              : 'bg-card border-border hover:border-primary/50'
-            }
-            ${!isPlaying ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-          `}
-        >
-          {revealed[i] && (mines[i] ? '💣' : '🎯')}
+          {revealed[i] && (bombs[i] ? '💣' : '🎯')}
         </button>
       ))}
     </div>
@@ -402,65 +359,6 @@ const LadderGame = ({
               `}
             >
               {revealed[level] === pos && '⭐'}
-            </button>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-};
-
-const TowerGame = ({ 
-  isPlaying, 
-  multiplier, 
-  setMultiplier,
-  onGameOver 
-}: { 
-  isPlaying: boolean;
-  multiplier: number;
-  setMultiplier: (v: number) => void;
-  onGameOver: () => void;
-}) => {
-  const [currentLevel, setCurrentLevel] = useState(0);
-  const [revealed, setRevealed] = useState<(number | null)[]>(Array(8).fill(null));
-
-  const handleClick = (level: number, position: number) => {
-    if (!isPlaying || level !== currentLevel) return;
-    
-    const isMine = Math.random() < 0.35;
-    const newRevealed = [...revealed];
-    newRevealed[level] = position;
-    setRevealed(newRevealed);
-
-    if (isMine) {
-      onGameOver();
-    } else {
-      setMultiplier(multiplier + 0.5);
-      setCurrentLevel(level + 1);
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      {Array.from({ length: 8 }).map((_, level) => (
-        <div key={level} className="grid grid-cols-4 gap-2">
-          {Array.from({ length: 4 }).map((_, pos) => (
-            <button
-              key={pos}
-              onClick={() => handleClick(level, pos)}
-              disabled={!isPlaying || level !== currentLevel}
-              className={`py-3 rounded-lg border-2 flex items-center justify-center text-xl font-bold transition-all hover-scale
-                ${revealed[level] === pos
-                  ? 'bg-primary/20 border-primary'
-                  : level < currentLevel
-                    ? 'bg-card/50 border-border/50 opacity-50'
-                    : level === currentLevel
-                      ? 'bg-card border-border hover:border-primary/50 cursor-pointer'
-                      : 'bg-card/30 border-border/30 opacity-30 cursor-not-allowed'
-                }
-              `}
-            >
-              {revealed[level] === pos && '🗼'}
             </button>
           ))}
         </div>
