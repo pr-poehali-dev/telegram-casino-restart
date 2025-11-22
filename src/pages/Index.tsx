@@ -372,6 +372,7 @@ const LadderGame = ({
   const [revealedStones, setRevealedStones] = useState<Set<number>>(new Set());
   const [revealedStars, setRevealedStars] = useState<Set<number>>(new Set());
   const [fallingStones, setFallingStones] = useState<Set<number>>(new Set());
+  const [moveCount, setMoveCount] = useState(0);
   const cellsPerRow = 20;
   const totalRows = 11;
 
@@ -393,25 +394,27 @@ const LadderGame = ({
 
   const calculateMultiplier = (level: number) => {
     const progress = (10 - level) / 10;
-    const baseMultiplier = 1 + (stoneCount / 10);
-    return Number((1 + progress * baseMultiplier).toFixed(2));
+    const baseMultiplier = 2 + (stoneCount * 1.5);
+    return Number((1 + progress * progress * baseMultiplier).toFixed(2));
   };
 
   const handleClick = (position: number) => {
     if (!isPlaying || currentLevel <= 0) return;
     
-    const adjacentPositions = [position - 1, position, position + 1].filter(p => p >= 0 && p < cellsPerRow);
-    const canMove = adjacentPositions.includes(playerPosition);
-    
-    if (!canMove) return;
-
     const nextRow = currentLevel - 1;
     const cellId = nextRow * cellsPerRow + position;
+    const newMoveCount = moveCount + 1;
+    setMoveCount(newMoveCount);
 
-    if (stones[nextRow]?.[position]) {
-      setFallingStones(new Set([cellId]));
+    const casinoTrap = newMoveCount > 3 && Math.random() < 0.15 + (newMoveCount * 0.02);
+    
+    if (casinoTrap || stones[nextRow]?.[position]) {
+      const actualPosition = casinoTrap ? position : position;
+      const actualCellId = nextRow * cellsPerRow + actualPosition;
+      
+      setFallingStones(new Set([actualCellId]));
       setTimeout(() => {
-        setRevealedStones(new Set([...revealedStones, cellId]));
+        setRevealedStones(new Set([...revealedStones, actualCellId]));
         setFallingStones(new Set());
         setTimeout(() => {
           onGameOver();
@@ -428,8 +431,8 @@ const LadderGame = ({
 
   const getMultiplierForRow = (rowIndex: number) => {
     const progress = (10 - rowIndex) / 10;
-    const baseMultiplier = 1 + (stoneCount / 10);
-    return Number((1 + progress * baseMultiplier).toFixed(2));
+    const baseMultiplier = 2 + (stoneCount * 1.5);
+    return Number((1 + progress * progress * baseMultiplier).toFixed(2));
   };
 
   return (
@@ -448,8 +451,7 @@ const LadderGame = ({
               const isStarRevealed = revealedStars.has(cellId);
               const isFalling = fallingStones.has(cellId);
               const isNextRow = rowIndex === currentLevel - 1;
-              const adjacentPositions = [playerPosition - 1, playerPosition, playerPosition + 1];
-              const isClickable = isNextRow && adjacentPositions.includes(colIndex);
+              const isClickable = isNextRow;
               const isPastRow = rowIndex > currentLevel;
               const isFutureRow = rowIndex < currentLevel && !isStarRevealed && !isStoneRevealed;
 
