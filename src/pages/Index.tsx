@@ -474,19 +474,19 @@ const LadderGame = ({
         </div>
       )}
       
-      <div className="space-y-[2px]">
+      <div className="space-y-1">
         {Array.from({ length: totalRows }).map((_, rowIndex) => {
           const rowCells = getCellsForRow(rowIndex);
           const paddingCells = Math.floor((20 - rowCells) / 2);
           
           return (
-            <div key={rowIndex} className="flex gap-[2px] items-center">
+            <div key={rowIndex} className="flex gap-1 items-center">
               <div className="w-12 text-xs text-muted-foreground font-bold text-right mr-2">
                 ×{getMultiplierForRow(rowIndex)}
               </div>
               
               {Array.from({ length: paddingCells }).map((_, i) => (
-                <div key={`pad-left-${i}`} className="h-7 flex-1 opacity-0" />
+                <div key={`pad-left-${i}`} className="h-10 flex-1 opacity-0" />
               ))}
               
               {Array.from({ length: rowCells }).map((_, colIndex) => {
@@ -505,24 +505,24 @@ const LadderGame = ({
                     key={colIndex}
                     onClick={() => handleClick(colIndex)}
                     disabled={!isPlaying || !isClickable}
-                    className={`h-7 flex-1 rounded-sm flex items-center justify-center text-sm font-bold transition-all relative
+                    className={`h-10 flex-1 rounded flex items-center justify-center text-base font-bold transition-all relative min-w-[20px]
                       ${isPlayerHere ? 'bg-primary text-primary-foreground scale-110 z-10' : ''}
                       ${isStoneRevealed ? 'bg-muted-foreground/80' : ''}
                       ${isStarRevealed ? 'bg-primary/40' : ''}
                       ${isPastRow && !isPlayerHere && !isStarRevealed && !isStoneRevealed ? 'bg-muted/20' : ''}
                       ${isFutureRow ? 'bg-card/60' : ''}
                       ${isNextRow && !isStarRevealed && !isStoneRevealed ? 'bg-destructive/15' : ''}
-                      ${isClickable && !isPlayerHere && !isStarRevealed && !isStoneRevealed ? 'hover:bg-primary/30 cursor-pointer' : ''}
+                      ${isClickable && !isPlayerHere && !isStarRevealed && !isStoneRevealed ? 'hover:bg-primary/30 cursor-pointer active:scale-95' : ''}
                       ${!isClickable && !isPlayerHere && !isStarRevealed && !isStoneRevealed ? 'cursor-default' : ''}
                       ${isFalling ? 'animate-stone-fall' : ''}
                     `}
                   >
-                    {isPlayerHere && <span className="text-base">👤</span>}
-                    {isStoneRevealed && <span className="animate-pulse">🪨</span>}
-                    {isStarRevealed && <span>⭐</span>}
+                    {isPlayerHere && <span className="text-lg">👤</span>}
+                    {isStoneRevealed && <span className="animate-pulse text-base">🪨</span>}
+                    {isStarRevealed && <span className="text-base">⭐</span>}
                     {isFalling && (
                       <div className="absolute inset-0 flex items-start justify-center animate-stone-drop">
-                        <span className="text-lg">🪨</span>
+                        <span className="text-xl">🪨</span>
                       </div>
                     )}
                   </button>
@@ -530,7 +530,7 @@ const LadderGame = ({
               })}
               
               {Array.from({ length: paddingCells }).map((_, i) => (
-                <div key={`pad-right-${i}`} className="h-7 flex-1 opacity-0" />
+                <div key={`pad-right-${i}`} className="h-10 flex-1 opacity-0" />
               ))}
             </div>
           );
