@@ -15,7 +15,7 @@ const Index = () => {
 
   const games = [
     { id: 'sapper' as GameType, title: 'Сапёр', icon: '🎯', description: 'Открывай клетки, избегай бомбы! Настраивай сложность от 3 до 15 бомб' },
-    { id: 'ladder' as GameType, title: 'Лесенка', icon: '🪜', description: 'Поднимайся выше и умножай выигрыш' },
+    { id: 'ladder' as GameType, title: 'Лесенка', icon: '🪜', description: 'Собирай звёзды, избегай падающих камней! Выбери сложность от 3 до 7 камней' },
   ];
 
   return (
@@ -107,6 +107,7 @@ const GameView = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMultiplier, setCurrentMultiplier] = useState(1);
   const [bombCount, setBombCount] = useState(3);
+  const [stoneCount, setStoneCount] = useState(3);
   const [gameKey, setGameKey] = useState(0);
 
   const gameConfig = {
@@ -169,6 +170,7 @@ const GameView = ({
           multiplier={currentMultiplier}
           setMultiplier={setCurrentMultiplier}
           onGameOver={handleGameOver}
+          stoneCount={stoneCount}
         />}
 
         {!isPlaying ? (
@@ -203,6 +205,27 @@ const GameView = ({
                 <div className="flex justify-between text-xs text-muted-foreground mt-1">
                   <span>Легко (×1.2)</span>
                   <span>Сложно (×3.0)</span>
+                </div>
+              </div>
+            )}
+
+            {gameType === 'ladder' && (
+              <div>
+                <label className="flex items-center justify-between text-sm mb-2">
+                  <span>Количество камней 🪨</span>
+                  <span className="text-primary font-bold">{stoneCount}</span>
+                </label>
+                <Input
+                  type="range"
+                  min="3"
+                  max="7"
+                  value={stoneCount}
+                  onChange={(e) => setStoneCount(Number(e.target.value))}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                  <span>Легко (×1.1)</span>
+                  <span>Сложно (×1.6)</span>
                 </div>
               </div>
             )}
@@ -251,6 +274,7 @@ const SapperGame = ({
   const [revealed, setRevealed] = useState<boolean[]>(Array(25).fill(false));
   const [bombs, setBombs] = useState<boolean[]>([]);
   const [gameOver, setGameOver] = useState(false);
+  const [explodingCells, setExplodingCells] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (isPlaying && bombs.length === 0) {
@@ -281,11 +305,16 @@ const SapperGame = ({
 
     if (bombs[index]) {
       setGameOver(true);
-      const allRevealed = bombs.map((b, i) => b || revealed[i]);
-      setRevealed(allRevealed);
+      setExplodingCells(new Set([index]));
+      
       setTimeout(() => {
-        onGameOver();
-      }, 1500);
+        const allRevealed = bombs.map((b, i) => b || revealed[i]);
+        setRevealed(allRevealed);
+        
+        setTimeout(() => {
+          onGameOver();
+        }, 1500);
+      }, 600);
     } else {
       const openedSafe = newRevealed.filter((r, i) => r && !bombs[i]).length;
       const newMultiplier = calculateMultiplier(openedSafe);
@@ -300,7 +329,7 @@ const SapperGame = ({
           key={i}
           onClick={() => handleClick(i)}
           disabled={!isPlaying || gameOver}
-          className={`aspect-square rounded-lg border-2 flex items-center justify-center text-2xl font-bold transition-all hover-scale
+          className={`aspect-square rounded-lg border-2 flex items-center justify-center text-2xl font-bold transition-all hover-scale relative overflow-hidden
             ${revealed[i] 
               ? bombs[i] 
                 ? 'bg-destructive/20 border-destructive' 
@@ -308,9 +337,16 @@ const SapperGame = ({
               : 'bg-card border-border hover:border-primary/50'
             }
             ${!isPlaying || gameOver ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+            ${explodingCells.has(i) ? 'animate-explosion' : ''}
           `}
         >
           {revealed[i] && (bombs[i] ? '💣' : '🎯')}
+          {explodingCells.has(i) && (
+            <>
+              <div className="absolute inset-0 bg-destructive/60 animate-pulse" />
+              <div className="absolute inset-0 flex items-center justify-center text-4xl animate-bounce">💥</div>
+            </>
+          )}
         </button>
       ))}
     </div>
@@ -321,55 +357,101 @@ const LadderGame = ({
   isPlaying, 
   multiplier, 
   setMultiplier,
-  onGameOver 
+  onGameOver,
+  stoneCount
 }: { 
   isPlaying: boolean;
   multiplier: number;
   setMultiplier: (v: number) => void;
   onGameOver: () => void;
+  stoneCount: number;
 }) => {
   const [currentLevel, setCurrentLevel] = useState(0);
-  const [revealed, setRevealed] = useState<(number | null)[]>(Array(10).fill(null));
+  const [playerPosition, setPlayerPosition] = useState(10);
+  const [stones, setStones] = useState<boolean[][]>([]);
+  const [revealed, setRevealed] = useState<Set<number>>(new Set());
+  const cellsPerRow = 20;
+  const totalRows = 11;
 
-  const handleClick = (level: number, position: number) => {
-    if (!isPlaying || level !== currentLevel) return;
-    
-    const isMine = Math.random() < 0.3;
-    const newRevealed = [...revealed];
-    newRevealed[level] = position;
-    setRevealed(newRevealed);
-
-    if (isMine) {
-      onGameOver();
-    } else {
-      setMultiplier(multiplier + 0.4);
-      setCurrentLevel(level + 1);
+  useEffect(() => {
+    if (isPlaying && stones.length === 0) {
+      const newStones: boolean[][] = [];
+      for (let row = 0; row < totalRows; row++) {
+        const rowStones = Array(cellsPerRow).fill(false);
+        const positions = new Set<number>();
+        while (positions.size < stoneCount) {
+          positions.add(Math.floor(Math.random() * cellsPerRow));
+        }
+        positions.forEach(p => rowStones[p] = true);
+        newStones.push(rowStones);
+      }
+      setStones(newStones);
     }
+  }, [isPlaying, stones.length, stoneCount]);
+
+  const calculateMultiplier = (level: number) => {
+    const baseMultiplier = 1 + (stoneCount / 15);
+    return Number((1 + (level / totalRows) * baseMultiplier).toFixed(2));
+  };
+
+  const handleClick = (position: number) => {
+    if (!isPlaying || currentLevel >= totalRows - 1) return;
+    
+    const adjacentPositions = [position - 1, position, position + 1].filter(p => p >= 0 && p < cellsPerRow);
+    const canMove = adjacentPositions.includes(playerPosition);
+    
+    if (!canMove) return;
+
+    if (stones[currentLevel + 1]?.[position]) {
+      setRevealed(new Set([...revealed, currentLevel * cellsPerRow + position]));
+      setTimeout(() => {
+        onGameOver();
+      }, 800);
+      return;
+    }
+
+    const newLevel = currentLevel + 1;
+    setCurrentLevel(newLevel);
+    setPlayerPosition(position);
+    setRevealed(new Set([...revealed, newLevel * cellsPerRow + position]));
+    setMultiplier(calculateMultiplier(newLevel));
   };
 
   return (
-    <div className="space-y-2">
-      {Array.from({ length: 10 }).map((_, level) => (
-        <div key={level} className="grid grid-cols-3 gap-2">
-          {Array.from({ length: 3 }).map((_, pos) => (
-            <button
-              key={pos}
-              onClick={() => handleClick(level, pos)}
-              disabled={!isPlaying || level !== currentLevel}
-              className={`py-4 rounded-lg border-2 flex items-center justify-center text-2xl font-bold transition-all hover-scale
-                ${revealed[level] === pos
-                  ? 'bg-primary/20 border-primary'
-                  : level < currentLevel
-                    ? 'bg-card/50 border-border/50 opacity-50'
-                    : level === currentLevel
-                      ? 'bg-card border-border hover:border-primary/50 cursor-pointer'
-                      : 'bg-card/30 border-border/30 opacity-30 cursor-not-allowed'
-                }
-              `}
-            >
-              {revealed[level] === pos && '⭐'}
-            </button>
-          ))}
+    <div className="space-y-1 bg-background/50 p-3 rounded-lg border-2 border-border">
+      {Array.from({ length: totalRows }).map((_, rowIndex) => (
+        <div key={rowIndex} className="flex gap-0.5">
+          {Array.from({ length: cellsPerRow }).map((_, colIndex) => {
+            const cellId = rowIndex * cellsPerRow + colIndex;
+            const isCurrentRow = rowIndex === currentLevel + 1;
+            const isPlayerHere = rowIndex === currentLevel && colIndex === playerPosition;
+            const isRevealed = revealed.has(cellId);
+            const hasStone = stones[rowIndex]?.[colIndex];
+            const adjacentPositions = [playerPosition - 1, playerPosition, playerPosition + 1];
+            const isClickable = isCurrentRow && adjacentPositions.includes(colIndex);
+
+            return (
+              <button
+                key={colIndex}
+                onClick={() => handleClick(colIndex)}
+                disabled={!isPlaying || !isClickable}
+                className={`h-6 flex-1 rounded-sm text-xs transition-all relative
+                  ${isPlayerHere ? 'bg-primary border border-primary' : ''}
+                  ${isRevealed && hasStone ? 'bg-muted-foreground border border-muted-foreground animate-pulse' : ''}
+                  ${isRevealed && !hasStone ? 'bg-primary/30 border border-primary/50' : ''}
+                  ${!isPlayerHere && !isRevealed && rowIndex < currentLevel ? 'bg-muted/30' : ''}
+                  ${!isPlayerHere && !isRevealed && rowIndex > currentLevel ? 'bg-card/50' : ''}
+                  ${!isPlayerHere && !isRevealed && rowIndex === currentLevel ? 'bg-destructive/20' : ''}
+                  ${isClickable && !isPlayerHere && !isRevealed ? 'hover:bg-primary/20 cursor-pointer' : ''}
+                  ${!isClickable && !isPlayerHere && !isRevealed ? 'cursor-default' : ''}
+                `}
+              >
+                {isPlayerHere && '👤'}
+                {isRevealed && hasStone && '🪨'}
+                {isRevealed && !hasStone && '⭐'}
+              </button>
+            );
+          })}
         </div>
       ))}
     </div>
